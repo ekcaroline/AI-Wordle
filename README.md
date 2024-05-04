@@ -1,1 +1,1 @@
-# CPSC481-Final-Project
+# AI Wordle
