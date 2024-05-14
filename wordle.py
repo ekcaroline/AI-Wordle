@@ -139,12 +139,15 @@ class WordleGame:
 
         # Filter out words containing invalid letters
         filter1 = [word for word in self.potential_words if all(letter in self.valid_letters for letter in word)]
+        # print('Filter1:', filter1)
 
         # Filter out words that have already been guessed
         filter2 = [word for word in filter1 if word not in self.guesses]
+        # print('Filter2:', filter2)
 
         # Filter out words that don't contain all possible letters
         filter3 = [word for word in filter2 if all(key in word for key in self.correct_letters_wrong_pos.keys())]
+        # print('Filter3:', filter3)
 
         # Filter out words that don't contain the characters in the display word
         filter4 = []
@@ -157,6 +160,7 @@ class WordleGame:
                         break
             if include_word:
                 filter4.append(word)
+        # print('Filter4:', filter4)
 
         # Filter out words repeating letters in incorrect positions
         filter5 = []
@@ -164,18 +168,21 @@ class WordleGame:
             for word in filter4:
                 include_word = True
                 for letter, positions in self.correct_letters_wrong_pos.items():
-                    if letter in word and any(pos == i for pos in positions):
-                        include_word = False
-                        break
+                    if letter in word and any(pos == i for pos in positions): # If the letter in the set is in the word
+                        # If the index where the letter is matches any number in the set, set include to false
+                        if word.index(letter) in positions:
+                            include_word = False
+                            break
                 if include_word:
                     filter5.append(word)
-            self.potential_words = filter5
         else: 
-            filter4 = filter3
+            filter5 = filter4
+        self.potential_words = filter5
+        # print('Filter5:', filter5)
 
         # Choose words with fewer repeating letters
         if filter5:
-            print(filter5)
+            # print(filter5)
             word_counts = {word: sum(word.count(letter) for letter in self.valid_letters) for word in filter5}
             min_count = min(word_counts.values())
             best_words = [word for word, count in word_counts.items() if count == min_count]
@@ -185,8 +192,6 @@ class WordleGame:
 
             return random.choice(best_words)
         else:
-            print("Choosing from potential words")
-            print(self.potential_words)
             return random.choice(self.potential_words)
 
 
