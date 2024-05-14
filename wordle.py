@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import random
 import string
 
@@ -35,27 +36,22 @@ class WordleGame:
     def __init__(self, solution_word_list_file, guess_word_list_file):
         self.solution_word_list = self.read_word_list(solution_word_list_file)
         self.guess_word_list = self.solution_word_list + self.read_word_list(guess_word_list_file)
-        self.target_word = list(self.select_target_word())  
+        self.target_word = list(self.select_target_word())
+        # self.target_word = "CROSS"
         self.display_word = ['*' for _ in self.target_word]  
         self.num_guesses = 0
         self.max_guesses = 6
         self.guesses = set()
 
         # Attributes only used by AI
-            # Keep track of what letters are valid
-            # Keep track of invalid letters
-            # Keep track of what letters are correct and in the right and wrong position
-            # Choose words from the word list that have valid letters in the correct pos and
-            # avoid putting valid letters in wrong positions
-        self.valid_letters = list(string.ascii_lowercase)
-        self.invalid_letters = []
-        self.correct_letters_correct_pos = []
-        self.correct_letters_wrong_pos = []
+        self.valid_letters = set(list(string.ascii_uppercase))
+        self.correct_letters_wrong_pos = {}
+        self.potential_words = self.solution_word_list
 
     def read_word_list(self, word_list_file):
         """Reads the csv file line by line and adds all the words to the word_list"""
         with open(word_list_file, 'r') as file:
-            return [word.strip().replace(",", "").lower() for word in file.readlines()]
+            return [word.strip().replace(",", "").upper() for word in file.readlines() if len(word.strip().replace(",", "")) == 5]
 
     def select_target_word(self):
         """Chooses the wordle word randomly from the word_list"""
@@ -67,9 +63,14 @@ class WordleGame:
 
         If incorrect, it will print what letters were in the correct position
         and print what letters are correct but in the wrong position.
-        
+
+        Updates what letters are invalid.
+
+        TO DO: Update what letters are correct but in the wrong position
         
         """
+        # print("Guess:", guess)
+        # print("Target word:", self.target_word)
         if len(guess) != len(self.target_word):
             return False, "Guess length should match the length of the word."
         if guess in self.guesses:
@@ -78,62 +79,116 @@ class WordleGame:
             return False, "That's not a real word!"
         self.num_guesses += 1
         self.guesses.add(guess)
-
+        
         wrong_pos = []
-        temp_target = [] # Holds the rest of letters in the target
-        temp_guess = [] # Holds the rest of the letters in the guess
+        temp_target = [] # Holds the rest of letters in the target after removing letters in the correct pos
+        temp_guess = [] # Holds the rest of the letters in the guess after removing letters in the correct pos
+        correct_word = True
 
         # Check for any correct letters in the correct positions
+        # If any letters are incorrect, change correct_word to false
         for i, letter in enumerate(guess):
             if letter == self.target_word[i]:
                 self.display_word[i] = letter
+                temp_guess.append('*')
             else:
                 temp_guess.append(letter)
                 temp_target.append(self.target_word[i])
+                correct_word = False
 
-        # Check for any correct letters in incorrect positions
-        for letter in temp_guess:
-            if letter in temp_target:
-                wrong_pos.append(letter)
+        # Return True if guess is the correct word
+        if correct_word == True:
+            return True, "Congratulations! The word is: {}".format(''.join(self.target_word))
         
-        # Print
-        if guess == self.target_word:
-            return True, "Congratulations! You've guessed the word: {}".format(''.join(self.target_word))
+        # Check for any correct letters in incorrect positions
+        for i, letter in enumerate(temp_guess):
+            if letter != "*":
+                if letter in temp_target:
+                    wrong_pos.append(letter)
+                    # Save the letter and its incorrect position
+                    if letter in self.correct_letters_wrong_pos:
+                        self.correct_letters_wrong_pos[letter].add(i)
+                    else:
+                        self.correct_letters_wrong_pos[letter] = {i}
+                else:
+                    print("Invalid letters:", letter)
+                    self.valid_letters.discard(letter) # For AI
+
+        # For scenarios where double letters appear in the guess but only exist once in the target
+        # Add the removed letters back into the valid letters set
+        for letters in self.display_word:
+            if letters != "*":
+                self.valid_letters.add(letters) 
+
+        print(self.correct_letters_wrong_pos)
+        if wrong_pos:
+            return False, f"Correct letters {' '.join(set(wrong_pos))}, but not in the right position. The word so far is: {''.join(self.display_word)}"
         else:
-            if wrong_pos:
-                return False, f"Correct letters {' '.join(wrong_pos)}, but not in the right position. The word so far is: {''.join(self.display_word)}"
-            else:
-                return False, "Incorrect guess. The word so far is: {}".format(''.join(self.display_word))
+            return False, "Incorrect guess. The word so far is: {}".format(''.join(self.display_word))
             
 
     def ai_guess(self):
-        potential_words = []
-        
-        for word in self.solution_word_list:
-            # Check if the word length matches the target word
-            if len(word) != len(self.target_word):
-                continue
-            
-            # Flag to check if the word is a potential match
-            is_potential_match = True
-            
-            for i, letter in enumerate(word):
-                if letter == self.target_word[i]:
-                    continue
-                # Check if the letter is correct but in the wrong position
-                elif letter in self.target_word:
-                    is_potential_match = False
-                    break
-                # Check if the letter is incorrect
-                else:
-                    continue
-            
-            # If the word is a potential match, add it to the list of potential words
-            if is_potential_match:
-                potential_words.append(word)
-        
-        # Randomly select a word from the list of potential words
-        return random.choice(potential_words) if potential_words else random.choice(self.solution_word_list)
+        """
+            TO DO: 
+            - AI should avoid using words that use invalid letters
+            - Avoid using valid letters in incorrect positions
+            - Iterate through all words in the solution word list and filter out words that do not meet the criteria
+            - If there are multiple possible words, choose ones that do not repeat as many letters
+
+        """
+
+        # Filter out words containing invalid letters
+        filter1 = [word for word in self.potential_words if all(letter in self.valid_letters for letter in word)]
+
+        # Filter out words that have already been guessed
+        filter2 = [word for word in filter1 if word not in self.guesses]
+
+        # Filter out words that don't contain all possible letters
+        filter3 = [word for word in filter2 if all(key in word for key in self.correct_letters_wrong_pos.keys())]
+
+        # Filter out words that don't contain the characters in the display word
+        filter4 = []
+        for word in filter3:
+            include_word = True
+            for i, letter in enumerate(self.display_word):
+                if letter != '*':
+                    if letter != word[i]:
+                        include_word = False
+                        break
+            if include_word:
+                filter4.append(word)
+
+        # Filter out words repeating letters in incorrect positions
+        filter5 = []
+        if filter4:
+            for word in filter4:
+                include_word = True
+                for letter, positions in self.correct_letters_wrong_pos.items():
+                    if letter in word and any(pos == i for pos in positions):
+                        include_word = False
+                        break
+                if include_word:
+                    filter5.append(word)
+            self.potential_words = filter5
+        else: 
+            filter4 = filter3
+
+        # Choose words with fewer repeating letters
+        if filter5:
+            print(filter5)
+            word_counts = {word: sum(word.count(letter) for letter in self.valid_letters) for word in filter5}
+            min_count = min(word_counts.values())
+            best_words = [word for word, count in word_counts.items() if count == min_count]
+
+            # Remove words that have already been guessed
+            best_words = [word for word in best_words if word not in self.guesses]
+
+            return random.choice(best_words)
+        else:
+            print("Choosing from potential words")
+            print(self.potential_words)
+            return random.choice(self.potential_words)
+
 
 
     def display_game_state(self):
@@ -147,9 +202,10 @@ guess_word_list_file = "./valid_guesses.csv"
 game = WordleGame(solution_word_list_file, guess_word_list_file)
 
 while game.num_guesses < game.max_guesses:
+    print("==============================\n")
     # Player's turn
-    print("Player's turn:")
-    player_guess = input().lower()
+    print(game.target_word)
+    player_guess = input("Player's turn: ").upper()
     is_correct, message = game.check_guess(player_guess)
     print(message)
     if is_correct:
@@ -157,7 +213,6 @@ while game.num_guesses < game.max_guesses:
         break
     
     # AI's turn
-    print("==============================\n")
     print("\nAI's turn: Guessing...")
     ai_guess = game.ai_guess()
     print("AI guesses:", ai_guess)
@@ -166,6 +221,7 @@ while game.num_guesses < game.max_guesses:
     if is_correct:
         print("AI wins!")
         break
+    print("\n")
 
 if not is_correct:
     print("Sorry, both player and AI have run out of guesses. The target word was: {}".format(''.join(game.target_word)))
