@@ -178,7 +178,7 @@ class WordleGame:
         else: 
             filter5 = filter4
         self.potential_words = filter5
-        # print('Filter5:', filter5)
+        print('Filter5:', filter5)
 
         # Choose words with fewer repeating letters
         if filter5:
